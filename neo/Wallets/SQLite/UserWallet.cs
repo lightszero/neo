@@ -104,7 +104,7 @@ namespace Neo.Wallets.SQLite
                         Buffer.BlockCopy(account.Key.PrivateKey, 0, decryptedPrivateKey, 64, 32);
                         byte[] encryptedPrivateKey = EncryptPrivateKey(decryptedPrivateKey);
                         Array.Clear(decryptedPrivateKey, 0, decryptedPrivateKey.Length);
-                        Account db_account = ctx.Accounts.FirstOrDefault(p => p.PublicKeyHash.SequenceEqual(account.Key.PublicKeyHash.ToArray()));
+                        Account db_account = ctx.Accounts.FirstOrDefault(p => p.PublicKeyHash == account.Key.PublicKeyHash.ToArray());
                         if (db_account == null)
                         {
                             db_account = ctx.Accounts.Add(new Account
@@ -120,7 +120,7 @@ namespace Neo.Wallets.SQLite
                     }
                     if (account.Contract != null)
                     {
-                        Contract db_contract = ctx.Contracts.FirstOrDefault(p => p.ScriptHash.SequenceEqual(account.Contract.ScriptHash.ToArray()));
+                        Contract db_contract = ctx.Contracts.FirstOrDefault(p => p.ScriptHash == account.Contract.ScriptHash.ToArray());
                         if (db_contract != null)
                         {
                             db_contract.PublicKeyHash = account.Key.PublicKeyHash.ToArray();
@@ -137,7 +137,7 @@ namespace Neo.Wallets.SQLite
                     }
                     //add address
                     {
-                        Address db_address = ctx.Addresses.FirstOrDefault(p => p.ScriptHash.SequenceEqual(account.Contract.ScriptHash.ToArray()));
+                        Address db_address = ctx.Addresses.FirstOrDefault(p => p.ScriptHash == account.Contract.ScriptHash.ToArray());
                         if (db_address == null)
                         {
                             ctx.Addresses.Add(new Address
@@ -275,17 +275,17 @@ namespace Neo.Wallets.SQLite
                     {
                         if (account.HasKey)
                         {
-                            Account db_account = ctx.Accounts.First(p => p.PublicKeyHash.SequenceEqual(account.Key.PublicKeyHash.ToArray()));
+                            Account db_account = ctx.Accounts.First(p => p.PublicKeyHash == account.Key.PublicKeyHash.ToArray());
                             ctx.Accounts.Remove(db_account);
                         }
                         if (account.Contract != null)
                         {
-                            Contract db_contract = ctx.Contracts.First(p => p.ScriptHash.SequenceEqual(scriptHash.ToArray()));
+                            Contract db_contract = ctx.Contracts.First(p => p.ScriptHash == scriptHash.ToArray());
                             ctx.Contracts.Remove(db_contract);
                         }
                         //delete address
                         {
-                            Address db_address = ctx.Addresses.First(p => p.ScriptHash.SequenceEqual(scriptHash.ToArray()));
+                            Address db_address = ctx.Addresses.First(p => p.ScriptHash == scriptHash.ToArray());
                             ctx.Addresses.Remove(db_address);
                         }
                         ctx.SaveChanges();
@@ -336,12 +336,11 @@ namespace Neo.Wallets.SQLite
                 return GetCoinsInternal();
             IEnumerable<Coin> GetCoinsInternal()
             {
-                HashSet<CoinReference> inputs, claims;
+                HashSet<CoinReference> inputs;
                 Coin[] coins_unconfirmed;
                 lock (unconfirmed)
                 {
                     inputs = new HashSet<CoinReference>(unconfirmed.Values.SelectMany(p => p.Inputs));
-                    claims = new HashSet<CoinReference>(unconfirmed.Values.OfType<ClaimTransaction>().SelectMany(p => p.Claims));
                     coins_unconfirmed = unconfirmed.Values.Select(tx => tx.Outputs.Select((o, i) => new Coin
                     {
                         Reference = new CoinReference
@@ -364,10 +363,6 @@ namespace Neo.Wallets.SQLite
                                 Output = coin.Output,
                                 State = coin.State | CoinState.Spent
                             };
-                        continue;
-                    }
-                    else if (claims.Contains(coin.Reference))
-                    {
                         continue;
                     }
                     yield return coin;

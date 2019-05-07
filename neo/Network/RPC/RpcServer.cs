@@ -203,12 +203,6 @@ namespace Neo.Network.RPC
                     {
                         return GetVersion();
                     }
-                case "invoke":
-                    {
-                        UInt160 script_hash = UInt160.Parse(_params[0].AsString());
-                        ContractParameter[] parameters = ((JArray)_params[1]).Select(p => ContractParameter.FromJson(p)).ToArray();
-                        return Invoke(script_hash, parameters);
-                    }
                 case "invokefunction":
                     {
                         UInt160 script_hash = UInt160.Parse(_params[0].AsString());
@@ -220,6 +214,10 @@ namespace Neo.Network.RPC
                     {
                         byte[] script = _params[0].AsString().HexToBytes();
                         return InvokeScript(script);
+                    }
+                case "listplugins":
+                    {
+                        return ListPlugins();
                     }
                 case "sendrawtransaction":
                     {
@@ -605,16 +603,6 @@ namespace Neo.Network.RPC
             return json;
         }
 
-        private JObject Invoke(UInt160 script_hash, ContractParameter[] parameters)
-        {
-            byte[] script;
-            using (ScriptBuilder sb = new ScriptBuilder())
-            {
-                script = sb.EmitAppCall(script_hash, parameters).ToArray();
-            }
-            return GetInvokeResult(script);
-        }
-
         private JObject InvokeFunction(UInt160 script_hash, string operation, ContractParameter[] args)
         {
             byte[] script;
@@ -628,6 +616,21 @@ namespace Neo.Network.RPC
         private JObject InvokeScript(byte[] script)
         {
             return GetInvokeResult(script);
+        }
+
+        private JObject ListPlugins()
+        {
+            return new JArray(Plugin.Plugins
+                .OrderBy(u => u.Name)
+                .Select(u => new JObject
+                {
+                    ["name"] = u.Name,
+                    ["version"] = u.Version.ToString(),
+                    ["interfaces"] = new JArray(u.GetType().GetInterfaces()
+                        .Select(p => p.Name)
+                        .Where(p => p.EndsWith("Plugin"))
+                        .Select(p => (JObject)p))
+                }));
         }
 
         private JObject SendRawTransaction(Transaction tx)

@@ -24,6 +24,7 @@ namespace Neo.Consensus
         ConsensusPayload[] PreparationPayloads { get; set; }
         ConsensusPayload[] CommitPayloads { get; set; }
         ConsensusPayload[] ChangeViewPayloads { get; set; }
+        int[] LastSeenMessage { get; set; }
         Block Block { get; set; }
         Snapshot Snapshot { get; }
 
@@ -31,13 +32,15 @@ namespace Neo.Consensus
 
         bool Load();
 
-        ConsensusPayload MakeChangeView(byte newViewNumber);
+        ConsensusPayload MakeChangeView();
 
         ConsensusPayload MakeCommit();
 
         Block MakeHeader();
 
         ConsensusPayload MakePrepareRequest();
+
+        ConsensusPayload MakeRecoveryRequest();
 
         ConsensusPayload MakeRecoveryMessage();
 

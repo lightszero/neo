@@ -26,7 +26,7 @@ namespace Neo.SmartContract
         protected readonly List<IDisposable> Disposables = new List<IDisposable>();
         protected readonly Dictionary<UInt160, UInt160> ContractsCreated = new Dictionary<UInt160, UInt160>();
         private readonly List<NotifyEventArgs> notifications = new List<NotifyEventArgs>();
-        private readonly Dictionary<uint, Func<ExecutionEngine, bool>> methods = new Dictionary<uint, Func<ExecutionEngine, bool>>();
+        private readonly Dictionary<uint, Func<ApplicationEngine, bool>> methods = new Dictionary<uint, Func<ApplicationEngine, bool>>();
         private readonly Dictionary<uint, long> prices = new Dictionary<uint, long>();
 
         public IReadOnlyList<NotifyEventArgs> Notifications => notifications;
@@ -61,6 +61,7 @@ namespace Neo.SmartContract
             Register("System.Block.GetTransactions", Block_GetTransactions, 1);
             Register("System.Block.GetTransaction", Block_GetTransaction, 1);
             Register("System.Transaction.GetHash", Transaction_GetHash, 1);
+            Register("System.Contract.Call", Contract_Call, 10);
             Register("System.Contract.Destroy", Contract_Destroy, 1);
             Register("System.Contract.GetStorageContext", Contract_GetStorageContext, 1);
             Register("System.Storage.GetContext", Storage_GetContext, 1);
@@ -103,16 +104,16 @@ namespace Neo.SmartContract
             uint hash = method.Length == 4
                 ? BitConverter.ToUInt32(method, 0)
                 : Encoding.ASCII.GetString(method).ToInteropMethodHash();
-            if (!methods.TryGetValue(hash, out Func<ExecutionEngine, bool> func)) return false;
-            return func(engine);
+            if (!methods.TryGetValue(hash, out Func<ApplicationEngine, bool> func)) return false;
+            return func((ApplicationEngine)engine);
         }
 
-        protected void Register(string method, Func<ExecutionEngine, bool> handler)
+        protected void Register(string method, Func<ApplicationEngine, bool> handler)
         {
             methods.Add(method.ToInteropMethodHash(), handler);
         }
 
-        protected void Register(string method, Func<ExecutionEngine, bool> handler, long price)
+        protected void Register(string method, Func<ApplicationEngine, bool> handler, long price)
         {
             Register(method, handler);
             prices.Add(method.ToInteropMethodHash(), price);
@@ -132,13 +133,13 @@ namespace Neo.SmartContract
 
         protected bool ExecutionEngine_GetCallingScriptHash(ExecutionEngine engine)
         {
-            engine.CurrentContext.EvaluationStack.Push(engine.CallingContext.ScriptHash);
+            engine.CurrentContext.EvaluationStack.Push(engine.CurrentContext.CallingScriptHash ?? new byte[0]);
             return true;
         }
 
         protected bool ExecutionEngine_GetEntryScriptHash(ExecutionEngine engine)
         {
-            engine.CurrentContext.EvaluationStack.Push(engine.EntryContext.ScriptHash);
+            engine.CurrentContext.EvaluationStack.Push(engine.EntryScriptHash);
             return true;
         }
 
@@ -637,6 +638,23 @@ namespace Neo.SmartContract
                 return true;
             }
             return false;
+        }
+
+        private bool Contract_Call(ExecutionEngine engine)
+        {
+            StackItem item0 = engine.CurrentContext.EvaluationStack.Pop();
+            ContractState contract;
+            if (item0 is InteropInterface<ContractState> _interface)
+                contract = _interface;
+            else
+                contract = Snapshot.Contracts.TryGet(new UInt160(item0.GetByteArray()));
+            if (contract is null) return false;
+            ExecutionContext context_new = engine.LoadScript(contract.Script, engine.CurrentContext.ScriptHash, 1);
+            StackItem item1 = engine.CurrentContext.EvaluationStack.Pop();
+            StackItem item2 = engine.CurrentContext.EvaluationStack.Pop();
+            context_new.EvaluationStack.Push(item2);
+            context_new.EvaluationStack.Push(item1);
+            return true;
         }
 
         protected bool Contract_Destroy(ExecutionEngine engine)
