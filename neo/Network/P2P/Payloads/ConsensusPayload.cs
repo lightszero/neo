@@ -1,11 +1,10 @@
-﻿#pragma warning disable CS0612
-using Neo.Consensus;
+﻿using Neo.Consensus;
 using Neo.Cryptography;
 using Neo.Cryptography.ECC;
 using Neo.IO;
 using Neo.Persistence;
 using Neo.SmartContract;
-using Neo.VM;
+using Neo.SmartContract.Native;
 using System;
 using System.IO;
 
@@ -17,8 +16,6 @@ namespace Neo.Network.P2P.Payloads
         public UInt256 PrevHash;
         public uint BlockIndex;
         public ushort ValidatorIndex;
-        [Obsolete] //This field will be removed from future version and should not be used.
-        private uint Timestamp;
         public byte[] Data;
         public Witness Witness;
 
@@ -91,18 +88,12 @@ namespace Neo.Network.P2P.Payloads
             PrevHash = reader.ReadSerializable<UInt256>();
             BlockIndex = reader.ReadUInt32();
             ValidatorIndex = reader.ReadUInt16();
-            Timestamp = reader.ReadUInt32();
             Data = reader.ReadVarBytes();
-        }
-
-        byte[] IScriptContainer.GetMessage()
-        {
-            return this.GetHashData();
         }
 
         UInt160[] IVerifiable.GetScriptHashesForVerifying(Snapshot snapshot)
         {
-            ECPoint[] validators = snapshot.GetValidators();
+            ECPoint[] validators = NativeContract.NEO.GetNextBlockValidators(snapshot);
             if (validators.Length <= ValidatorIndex)
                 throw new InvalidOperationException();
             return new[] { Contract.CreateSignatureRedeemScript(validators[ValidatorIndex]).ToScriptHash() };
@@ -120,7 +111,6 @@ namespace Neo.Network.P2P.Payloads
             writer.Write(PrevHash);
             writer.Write(BlockIndex);
             writer.Write(ValidatorIndex);
-            writer.Write(Timestamp);
             writer.WriteVarBytes(Data);
         }
 
@@ -132,4 +122,3 @@ namespace Neo.Network.P2P.Payloads
         }
     }
 }
-#pragma warning restore CS0612
